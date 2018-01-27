@@ -5,6 +5,7 @@ import os
 os.environ["CUDA_VISIBLE_DEVICES"] = '1' # cpu -1, gpus 0,1
 os.environ['PYTHONHASHSEED'] = '0' # set seed hash
 
+from keras import backend as K
 from keras.models import Model
 from keras.layers import Dense, Activation, Input, Flatten, Dropout
 from keras.layers.embeddings import Embedding
@@ -13,6 +14,7 @@ from keras.layers.convolutional import Conv1D, MaxPooling1D
 from keras.utils import to_categorical
 from keras.callbacks import Callback
 
+import gc
 import sys
 import time
 import random
@@ -36,10 +38,11 @@ class Benchmarking(Callback):
     	self.end_time = time.time()
     	log_dict = {'start':self.start_time,
     			    'end':self.end_time,
-    			    'elapsed':self.end_time - self.start_time}
+    			    'elapsed':self.end_time - self.start_time,
+    			    'epoch':epoch}
     	self.log.append(log_dict)
 
-architectures = ['/cpu:0','/gpu:0']
+architectures = ['/gpu:0','/cpu:0']
 
 n_epoch = 20
 
@@ -47,22 +50,21 @@ model_dict = {'m1':bm.m1,'m2':bm.m2,'m3':bm.m3,'m4':bm.m4,'m5':bm.m5,'m6':bm.m6,
 
 params_sweep = {'n':[500],
                 'c_model':['m' + str(n) for n in list(range(1,8))],
-                'b_n_batch':[32,64,96,128],
-                'a_n_read':[5,20,35,50]}
+                'b_n_batch':[128,96,64,32],
+                'a_n_read':[40,30,20,10]}
 
 param_grid = ParameterGrid(params_sweep)
 
-params = {'d_emb1':128,
-		  'd_emb2':64,
+params = {'d_emb1':128, # 128
           'd_cnn1':32,
           'd_cnn2':32,
-          'k1':2,
-          'k2':2,
-          'd_d1':256,
-          'd_d2':128,
-          'd_d3':64,
-          'd_d4':32}
+          'k1':3, # 2
+          'k2':3, # 2
+          'd_d1':128, # 256
+          'd_d2':64, # 128
+          'd_d3':32} # 32
 
+failures = []
 results = []
 n_reads_tmp = 0
 
@@ -94,8 +96,6 @@ for grid in param_grid:
 	t = dict()
 	logger = dict()
 
-	model = model_dict[grid['c_model']](**params)
-
 	try:
 
 		for arch in architectures:
@@ -110,6 +110,7 @@ for grid in param_grid:
 				random.seed(1)
 				tf.set_random_seed(1)
 
+				model = model_dict[grid['c_model']](**params)
 				model.compile(loss='categorical_crossentropy',optimizer='sgd')
 
 				print(model.summary())
@@ -123,14 +124,17 @@ for grid in param_grid:
 
 				gb, tr_params = bm.get_memory(grid['b_n_batch'],model)
 
-				logger[arch] = {'status':1,
-								'time':timer.log,
+				logger[arch] = {'time':timer.log,
 								'gb':gb,
-								'n_params':tr_params,
-								'model_params':params,
-								'data_params':grid}
+								'n_params':tr_params}
 
-		results.append(logger)
+				# garbage collection
+				del model
+				K.clear_session()
+				gc.collect()
+								
+
+		results.append({'status':1,'log':logger,'model_params':params,'data_params':grid})
 		six.moves.cPickle.dump(results,open('D:/Dropbox/cnn_gpu_cpu_benchmarking_tmp.pkl','wb'))
 
 		print(architectures[0] + ': ' + str(round((t[architectures[0]])/60,4)) + 'm (' + str(round((t[architectures[0]])/n_epoch,4)) + 's per epoch).\n' + \
@@ -147,10 +151,14 @@ for grid in param_grid:
 
 		continue
 
-sys.stdout = stdout_tmp
+
+print('Failures: ')
+[print(x['data_params']) for x in results if x['status'] == 0]
 
 print('Dumping results.')
 six.moves.cPickle.dump(results,open('D:/Dropbox/cnn_gpu_cpu_benchmarking.pkl','wb'))
 six.moves.cPickle.dump(results,open('D:/Active Research/cnn_lstm/results/cnn_gpu_cpu_benchmarking.pkl','wb'))
 bm.dump_results(results,path='D:/Active Research/cnn_lstm/results/results.csv')
 print('Complete.')
+
+sys.stdout = stdout_tmp

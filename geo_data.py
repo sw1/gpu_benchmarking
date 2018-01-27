@@ -15,7 +15,7 @@ from keras.utils import to_categorical
 
 class GenerateBatch(object):
 
-    def __init__(self, read_len, window, n_vocab, n_batch = 32, n_classes = 2, n_reads = 250, n_pad = 21, 
+    def __init__(self, seed, read_len, window, n_vocab, n_batch = 32, n_classes = 2, n_reads = 250, n_pad = 21, 
             shuffle = True, onehot = False):
         'Initialization'
         self.read_len = read_len
@@ -28,6 +28,7 @@ class GenerateBatch(object):
         self.max_len = n_reads * (read_len + n_pad)
         self.shuffle = shuffle
         self.onehot = onehot
+        self.seed = seed
 
         if onehot:
             self.in_len = (self.max_len, self.n_vocab) 
@@ -40,6 +41,7 @@ class GenerateBatch(object):
         'Generates order of exploration'
         # Find exploration order
         if self.shuffle == True:
+            random.seed(self.seed)
             random.shuffle(ids)
 
         return ids
@@ -70,11 +72,13 @@ class GenerateBatch(object):
         
         if nb == 0:
             nb = self.n_batch
-        
+
         # Infinite loop
         while True:
             # Generate order of exploration of dataset
             ids_tmp = self.__get_exploration_order(ids)
+
+            random.seed(self.seed)
 
             # Generate batches
             end = int(len(ids)/nb)
@@ -93,7 +97,8 @@ def data(k,seed,window,n_batch,n_reads,n_batch_val=0,n_pad=False,shuffle=True,on
               'n_batch': n_batch,  
               'n_reads': n_reads,
               'onehot': onehot,
-              'shuffle': shuffle}
+              'shuffle': shuffle,
+              'seed': seed}
     
     if n_pad:
         params['n_pad'] = window * k

@@ -11,8 +11,6 @@ from keras.utils import to_categorical
 from keras.callbacks import Callback
 
 def dump_results(results,path='results.csv'):
-    
-    architectures = ['/gpu:0','/cpu:0']
 
     with open(path, 'w', newline='') as csvfile:
 
@@ -20,26 +18,26 @@ def dump_results(results,path='results.csv'):
 
         headers = []
         headers.append('arch')
-        headers.extend([h[2:] for h in list(results[0][architectures[0]]['data_params'].keys())[0:3]])
-        headers.extend(list(results[0][architectures[0]]['data_params'].keys())[3])
-        headers.extend(list(results[0][architectures[0]]['model_params'].keys()))
+        headers.extend([h[2:] for h in list(results[0]['data_params'].keys())[0:3]])
+        headers.extend(list(results[0]['data_params'].keys())[3])
+        headers.extend(list(results[0]['model_params'].keys()))
         headers.append('n_params')
         headers.append('gb')
-        headers.extend(list(results[0][architectures[0]]['time'][0].keys()))
+        headers.extend(list(results[0]['log']['/gpu:0']['time'][0].keys()))
 
         f.writerow(headers)
 
         for result in results:
-            if set(architectures) == set(result.keys()):
-                for arch in architectures:
+            if result['status'] == 1:
+                for arch in result['log']:
                     values = []
                     values.append(arch)
-                    values.extend(list(result[arch]['data_params'].values()))
-                    values.extend(list(result[arch]['model_params'].values()))
-                    values.append(result[arch]['n_params'])
-                    values.append(result[arch]['gb'])
+                    values.extend(list(result['data_params'].values()))
+                    values.extend(list(result['model_params'].values()))
+                    values.append(result['log'][arch]['n_params'])
+                    values.append(result['log'][arch]['gb'])
 
-                    time = [list(d.values()) for d in result[arch]['time']]
+                    time = [list(d.values()) for d in result['log'][arch]['time']]
 
                     for t in time:
                         f.writerow(values + t)
@@ -65,39 +63,39 @@ def get_memory(n_batch, model, gb = True):
 
     return memory_per_batch, tr_params
 
-def m1(n_class,p,n_word,d_emb2,d_d2,**kwargs):
+def m1(n_class,p,n_word,d_emb1,d_d1,**kwargs):
 
     inputs = Input(shape=(p,))
-    layer_embed = Embedding(n_word,d_emb2)(inputs)
+    layer_embed = Embedding(n_word,d_emb1)(inputs)
     layer_flatten = Flatten()(layer_embed)
-    layer_dense = Dense(d_d2, activation='relu', kernel_constraint=maxnorm(3))(layer_flatten)
+    layer_dense = Dense(d_d1, activation='relu', kernel_constraint=maxnorm(3))(layer_flatten)
     layer_dropout = Dropout(.5)(layer_dense)
     outputs = Dense(n_class, activation='softmax')(layer_dropout)
     model = Model(inputs=inputs,outputs=outputs)
 
     return(model)
 
-def m2(n_class,p,n_word,d_emb2,d_d2,d_d3,**kwargs):
+def m2(n_class,p,n_word,d_emb1,d_d1,d_d2,**kwargs):
 
     inputs = Input(shape=(p,))
-    layer_embed = Embedding(n_word,d_emb2)(inputs)
+    layer_embed = Embedding(n_word,d_emb1)(inputs)
     layer_flatten = Flatten()(layer_embed)
-    layer_dense_1 = Dense(d_d2, activation='relu', kernel_constraint=maxnorm(3))(layer_flatten)
-    layer_dense_2 = Dense(d_d3, activation='relu', kernel_constraint=maxnorm(3))(layer_dense_1)
+    layer_dense_1 = Dense(d_d1, activation='relu', kernel_constraint=maxnorm(3))(layer_flatten)
+    layer_dense_2 = Dense(d_d2, activation='relu', kernel_constraint=maxnorm(3))(layer_dense_1)
     layer_dropout = Dropout(.5)(layer_dense_2)
     outputs = Dense(n_class, activation='softmax')(layer_dropout)
     model = Model(inputs=inputs,outputs=outputs)
 
     return(model)
 
-def m3(n_class,p,n_word,d_emb2,d_d2,d_d3,d_d4,**kwargs):
+def m3(n_class,p,n_word,d_emb1,d_d1,d_d2,d_d3,**kwargs):
 
     inputs = Input(shape=(p,))
-    layer_embed = Embedding(n_word,d_emb2)(inputs)
+    layer_embed = Embedding(n_word,d_emb1)(inputs)
     layer_flatten = Flatten()(layer_embed)
-    layer_dense_1 = Dense(d_d2, activation='relu', kernel_constraint=maxnorm(3))(layer_flatten)
-    layer_dense_2 = Dense(d_d3, activation='relu', kernel_constraint=maxnorm(3))(layer_dense_1)
-    layer_dense_3 = Dense(d_d4, activation='relu', kernel_constraint=maxnorm(3))(layer_dense_2)
+    layer_dense_1 = Dense(d_d1, activation='relu', kernel_constraint=maxnorm(3))(layer_flatten)
+    layer_dense_2 = Dense(d_d2, activation='relu', kernel_constraint=maxnorm(3))(layer_dense_1)
+    layer_dense_3 = Dense(d_d3, activation='relu', kernel_constraint=maxnorm(3))(layer_dense_2)
     layer_dropout = Dropout(.5)(layer_dense_3)
     outputs = Dense(n_class, activation='softmax')(layer_dropout)
     model = Model(inputs=inputs,outputs=outputs)
